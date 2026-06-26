@@ -65,6 +65,24 @@ class ProductSerializer(Serializer):
     image_url = URL(allow_null=True, required=False)
     is_active = Boolean()
 
+def _validate_categories(categories):
+    try:
+        serializer = CategorySerializer(data=categories, many=True)
+        serializer.is_valid(raise_exception=True)
+    except ValidationError as error:
+        raise CategoryValidationError(detail=error.detail) from error
+    return serializer.validated_data
+
+
+def _validate_products(products):
+    try:
+        serializer = ProductSerializer(data=products, many=True)
+        serializer.is_valid(raise_exception=True)
+    except ValidationError as error:
+        raise ProductValidationError(detail=error.detail) from error
+    return serializer.validated_data
+
+
 def build_yml(products, categories, generated_at):
 
     if not isinstance(products, list) and (not product or all(isinstance(item, dict) for item in products)):
