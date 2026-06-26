@@ -1,18 +1,10 @@
-from datetime import datetime
-from dataset import CATEGORIES, PRODUCTS
-import xml.etree.ElementTree as ET
-import xml.dom.minidom as MD
-
-import os
 import django
+import xml.etree.ElementTree as ET
+
+from datetime import datetime
+from xml.etree.ElementTree import Element, SubElement, tostring
+
 from django.conf import settings
-
-settings.configure(
-    SECRET_KEY='any-key',
-    INSTALLED_APPS=['rest_framework'],
-)
-django.setup()
-
 from rest_framework.serializers import (
     Serializer,
     IntegerField as Integer,
@@ -24,9 +16,22 @@ from rest_framework.serializers import (
     ValidationError,
 )
 
+from dataset import CATEGORIES, PRODUCTS
+
+
+settings.configure(
+    SECRET_KEY="any-key",
+    INSTALLED_APPS=["rest_framework"],
+)
+django.setup()
+
 
 class FeedValidationError(ValidationError):
     """Ошибка валидации данных для YML-фида."""
+
+
+class DateValidationError(FeedValidationError):
+    """Ошибка в дате генерации."""
 
 
 class CategoryValidationError(FeedValidationError):
@@ -65,6 +70,7 @@ class ProductSerializer(Serializer):
     image_url = URL(allow_null=True, required=False)
     is_active = Boolean()
 
+
 def _validate_categories(categories):
     try:
         serializer = CategorySerializer(data=categories, many=True)
@@ -82,13 +88,15 @@ def _validate_products(products):
         raise ProductValidationError(detail=error.detail) from error
     return serializer.validated_data
 
+
 def _validate_relations(products, categories):
     existing_ids = {category["id"] for category in categories}
     for product in products:
         if product["category_id"] not in existing_ids:
             raise CategoryRelationError(
-                f'Товар id={product["id"]}: категория {product["category_id"]} не существует'
+                f"Товар id={product['id']}: категория {product['category_id']} не существует"
             )
+
 
 def _validate_generated_at(generated_at):
     if not isinstance(generated_at, datetime):
@@ -97,6 +105,13 @@ def _validate_generated_at(generated_at):
         )
     return generated_at.strftime("%Y-%m-%d %H:%M")
 
+
+def _sub_element_with_text(parent, type_, text, *args, **kwargs):
+    child = SubElement(parent, type_, *args, **kwargs)
+    child.text = text
+    return child
+
+
 def build_yml(products, categories, generated_at):
     generated_at = _validate_generated_at(generated_at)
     categories = _validate_categories(categories)
@@ -104,13 +119,17 @@ def build_yml(products, categories, generated_at):
     _validate_relations(products, categories)
 
     xml = '<?xml version="1.0" encoding="UTF-8"?>'
+    root = Element("yml_catalog", date="2026-06-18 12:00")
+    shop = SubElement(root, "shop")
+    _sub_element_with_text(shop, "name", "Test Shop")
+    _sub_element_with_text(shop, "company", "Test Company")
+    _sub_element_with_text(shop, "url", "https://example.test")
 
+    return xml + tostring(root, encoding="unicode")
 
-    return xml
 
 def build_yml_old(products, categories, generated_at):
     xml = '<?xml version="1.0" encoding="UTF-8"?>'
-
 
     xml += f'<yml_catalog date="{generated_at}">'
     xml += "<shop>"
@@ -130,39 +149,28 @@ def build_yml_old(products, categories, generated_at):
             if category["id"] == product["category_id"]
         )
 
-        xml += (
-            f'<category id="{category["id"]}">'
-            f'{category["name"]}'
-            f"</category>"
-        )
+        xml += f'<category id="{category["id"]}">{category["name"]}</category>'
 
     xml += "</categories>"
     xml += "<offers>"
 
     for product in products:
-        xml += (
-            f'<offer id="{product["id"]}" '
-            f'available="{product["stock"]}">'
-        )
+        xml += f'<offer id="{product["id"]}" available="{product["stock"]}">'
 
-        xml += (
-            f"<url>"
-            f'https://example.test/products/{product["slug"]}/'
-            f"</url>"
-        )
+        xml += f"<url>https://example.test/products/{product['slug']}/</url>"
 
         price = product["price"].replace(".", ",")
 
         xml += f"<price>{price}</price>"
 
         if product["old_price"]:
-            xml += f'<oldprice>{product["old_price"]}</oldprice>'
+            xml += f"<oldprice>{product['old_price']}</oldprice>"
 
         xml += "<currencyId>RUB</currencyId>"
-        xml += f'<categoryId>{product["category_id"]}</categoryId>'
-        xml += f'<picture>{product["image_url"]}</picture>'
-        xml += f'<name>{product["name"]}</name>'
-        xml += f'<description>{product["description"]}</description>'
+        xml += f"<categoryId>{product['category_id']}</categoryId>"
+        xml += f"<picture>{product['image_url']}</picture>"
+        xml += f"<name>{product['name']}</name>"
+        xml += f"<description>{product['description']}</description>"
         xml += "</offer>"
 
     xml += "</offers>"
