@@ -82,6 +82,13 @@ def _validate_products(products):
         raise ProductValidationError(detail=error.detail) from error
     return serializer.validated_data
 
+def _validate_relations(products, categories):
+    existing_ids = {category["id"] for category in categories}
+    for product in products:
+        if product["category_id"] not in existing_ids:
+            raise CategoryRelationError(
+                f'Товар id={product["id"]}: категория {product["category_id"]} не существует'
+            )
 
 def build_yml(products, categories, generated_at):
 
