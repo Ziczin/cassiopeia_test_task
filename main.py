@@ -90,10 +90,18 @@ def _validate_relations(products, categories):
                 f'Товар id={product["id"]}: категория {product["category_id"]} не существует'
             )
 
-def build_yml(products, categories, generated_at):
+def _validate_generated_at(generated_at):
+    if not isinstance(generated_at, datetime):
+        raise DateValidationError(
+            f"generated_at должен быть datetime, получен {type(generated_at).__name__}"
+        )
+    return generated_at.strftime("%Y-%m-%d %H:%M")
 
-    if not isinstance(products, list) and (not product or all(isinstance(item, dict) for item in products)):
-        raise TypeError("Expected")
+def build_yml(products, categories, generated_at):
+    generated_at = _validate_generated_at(generated_at)
+    categories = _validate_categories(categories)
+    products = _validate_products(products)
+    _validate_relations(products, categories)
 
     xml = '<?xml version="1.0" encoding="UTF-8"?>'
 
